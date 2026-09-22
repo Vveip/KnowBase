@@ -152,9 +152,17 @@ function enterQuestion() {
   phase.value = 'answering'
 }
 
+const notice = ref('')
+
 function start() {
   const source = pool.value
-  if (!source.length) return
+  if (!source.length) {
+    notice.value = filters.wrongOnly
+      ? '错题本还是空的，先去刷几道题吧。'
+      : '当前筛选条件下没有题目，换个条件试试。'
+    return
+  }
+  notice.value = ''
   queue.value = shuffle(source).map(cloneQuestion)
   done.value = 0
   skipped.value = 0
@@ -195,6 +203,12 @@ function skip() {
   queue.value.push(q)
   skipped.value++
   enterQuestion()
+}
+
+/** 从错题本移除（清零错题次数） */
+function removeFromWrongBook(id) {
+  delete wrongCounts[id]
+  persist()
 }
 
 /* ---------------- 三种题型作答 ---------------- */
@@ -295,7 +309,10 @@ onMounted(() => {
         当前筛选命中 <strong>{{ pool.length }}</strong> 题 ｜ 全站题库
         <strong>{{ QUESTIONS.length }}</strong> 题 ｜ 错题本
         <strong>{{ wrongBook.length }}</strong> 题
-        <span v-if="phase !== 'idle' && phase !== 'finished'">（筛选变更需点「重新开始」生效）</span>
+        <span v-if="notice" class="quiz-notice">{{ notice }}</span>
+        <span v-else-if="phase !== 'idle' && phase !== 'finished'"
+          >（筛选变更需点「重新开始」生效）</span
+        >
       </p>
     </section>
 
@@ -406,9 +423,6 @@ onMounted(() => {
         </p>
         <div class="quiz-actions">
           <button class="quiz-btn" @click="next">下一题</button>
-          <button v-if="!judgedCorrect" class="quiz-btn quiz-btn-ghost" @click="next">
-            稍后再练（已回队尾）
-          </button>
         </div>
       </div>
 
@@ -437,7 +451,7 @@ onMounted(() => {
         <li v-for="q in wrongBook" :key="q.id">
           <span class="quiz-tag quiz-tag-wrong">错 {{ wrongCounts[q.id] }} 次</span>
           <span>{{ q.question.slice(0, 60) }}{{ q.question.length > 60 ? '…' : '' }}</span>
-          <button class="quiz-btn quiz-btn-ghost quiz-btn-sm" @click="wrongCounts[q.id] = 0">
+          <button class="quiz-btn quiz-btn-ghost quiz-btn-sm" @click="removeFromWrongBook(q.id)">
             移出错题本
           </button>
         </li>
@@ -493,6 +507,12 @@ onMounted(() => {
   margin: 10px 0 0;
   font-size: 13px;
   color: var(--vp-c-text-3);
+}
+
+.quiz-notice {
+  display: block;
+  margin-top: 4px;
+  color: var(--vp-c-danger-1, #ef4444);
 }
 
 .quiz-score {
