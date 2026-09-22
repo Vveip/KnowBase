@@ -11,19 +11,14 @@ export default defineConfig({
   // 因此必须显式指定 srcDir，否则 vitepress build 会把项目根当作内容目录
   srcDir: 'docs',
 
+  // 只留在本地、不对外发布的页面：不参与构建，线上无法访问，也不会进本地搜索索引
+  srcExclude: ['**/notes/deploy.md'],
+
   themeConfig: {
     // https://vitepress.dev/reference/default-theme-config
     nav: [
       { text: '首页', link: '/' },
-      { text: '中级经济师·人力', link: '/人力资源/' },
-      { text: '系统架构图', link: '/autoapi-architecture.html' },
-      {
-        text: '相关链接',
-        items: [
-          { text: 'Cloudflare Pages 部署指南', link: '/notes/deploy' },
-          { text: 'VitePress 官方文档', link: 'https://vitepress.dev/zh/' }
-        ]
-      }
+      { text: '中级经济师·人力', link: '/人力资源/' }
     ],
 
     sidebar: [
@@ -75,26 +70,25 @@ export default defineConfig({
       {
         text: '知识库',
         items: [
-          { text: '快速开始', link: '/guide/getting-started' },
-          { text: '系统架构图', link: '/autoapi-architecture.html' }
+          { text: '快速开始', link: '/guide/getting-started' }
         ]
       },
       {
         text: '笔记',
         collapsed: false,
         items: [
-          { text: 'Markdown 写作指南', link: '/notes/writing' },
-          { text: 'GitHub + Cloudflare 部署', link: '/notes/deploy' }
+          { text: 'Markdown 写作指南', link: '/notes/writing' }
         ]
       }
     ],
 
+    // 只保留图标，不指向本项目仓库
     socialLinks: [
-      { icon: 'github', link: 'https://github.com/Vveip/KnowBase' }
+      { icon: 'github', link: 'https://github.com' }
     ],
 
     footer: {
-      message: '基于 VitePress 构建 · 部署于 Cloudflare Pages',
+      message: '基于 VitePress 构建',
       copyright: 'Copyright © 2026-present KnowBase'
     },
 

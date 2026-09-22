@@ -30,18 +30,16 @@ git commit -m "docs: 新增 XXX 笔记"
 git push
 ```
 
-4. 等 1 分钟左右，线上站点自动更新
+4. 稍后线上站点自动更新
 
 ## 目录结构
 
-```
-D:\pi_home\
+<项目根目录>/
 ├── docs\                    # 所有 Markdown 内容
 │   ├── index.md             # 首页（layout: home）
 │   ├── guide\               # 指南
-│   └── notes\               # 笔记
-├── public\                  # 原样拷贝到站点根目录的静态文件
-│   └── autoapi-architecture.html
+│   ├── notes\               # 笔记
+│   └── public\              # 原样拷贝到站点根目录的静态文件
 ├── .vitepress\
 │   └── config.mjs           # 站点配置（导航、侧边栏、搜索等）
 ├── package.json
@@ -49,10 +47,8 @@ D:\pi_home\
 ```
 
 ::: tip 关于 public 目录
-放在 `public/` 里的文件会被**原封不动**复制到构建产物根目录。
-比如 `public/autoapi-architecture.html` 构建后访问地址是
-`https://knowbase-6p1.pages.dev/autoapi-architecture.html`。
-适合放 archify 导出的独立 HTML、图片、PDF 等。
+放在 `docs/public/` 里的文件会被**原封不动**复制到站点根目录，
+适合放独立 HTML、图片、PDF 等静态资源。
 :::
 
 ## 常用配置修改
