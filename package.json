@@ -1,0 +1,22 @@
+{
+  "name": "knowbase",
+  "version": "1.0.0",
+  "private": true,
+  "description": "我的个人知识库 - VitePress + Cloudflare Pages",
+  "type": "module",
+  "scripts": {
+    "docs:dev": "node scripts/gen-quiz.mjs && vitepress dev",
+    "docs:build": "node scripts/gen-quiz.mjs && vitepress build",
+    "docs:preview": "vitepress preview",
+    "quiz": "node scripts/gen-quiz.mjs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.4"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pdf-parse": "^2.4.5"
+  }
+}
