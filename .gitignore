@@ -10,6 +10,7 @@ node_modules/
 
 # 课件原始 PDF（体积大，不入库；提取出的文本 cail/txt/ 入库）
 cail/*.pdf
+source/*
 
 # 系统文件
 .DS_Store

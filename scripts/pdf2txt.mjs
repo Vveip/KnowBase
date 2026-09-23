@@ -4,20 +4,20 @@
  * 把 cail 目录下的 PDF 批量提取为 UTF-8 纯文本，供知识库总结使用。
  * 依赖 pdf-parse 2.x（基于 pdfjs-dist 5.x）。
  *
- * 用法（在 D:\pi_home 目录下）：
+ * 用法（在 D:\KnowBase 目录下）：
  *
  *   npm install pdf-parse --no-fund --no-audit     # 仅首次
  *   node scripts\pdf2txt.mjs                        # 转换全部
  *   node scripts\pdf2txt.mjs 第1章                   # 只转换文件名含「第1章」的
  *
- * 输出：D:\pi_home\cail\txt\*.txt
+ * 输出：D:\KnowBase\cail\txt\*.txt
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { PDFParse } from 'pdf-parse';
 
-const SRC = path.join('D:', 'pi_home', 'cail');
+const SRC = path.join('D:', 'KnowBase', 'cail');
 const OUT = path.join(SRC, 'txt');
 
 const filter = process.argv[2] || '';
