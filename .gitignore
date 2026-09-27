@@ -27,3 +27,20 @@ dom1.html
 dom2.html
 err*.txt
 scripts/_*.mjs
+
+# AI 工作流本地文件（断点续跑笔记 / 本地工具设置，与站点运行无关）
+TASKS.md
+TASKS-*.md
+.claude/
+
+# 资料审计中间产物与本地审计脚本（处理 source/ 私有资料用，站点运行不需要）
+audits/
+scripts/audit-source.py
+
+# Python 缓存
+__pycache__/
+scripts/__pycache__/
+
+# 已作废的旧 PDF 转换脚本（文件内有作废说明，保留本地备查，不入库）
+scripts/pdf2txt.cjs
+scripts/pdf2txt.ps1

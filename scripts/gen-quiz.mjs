@@ -18,6 +18,21 @@ const OUT_FILE = path.join(ROOT, '.vitepress', 'quiz-data.json')
 
 const SKIP_DIRS = new Set(['node_modules', '.git', '.vitepress', 'dist', 'cache'])
 
+// 专业大类：取题目所在 md 的一级目录（docs/<目录>/...）。
+// 目录改名或新增大类时，只需在这里加一行映射；未列出的目录沿用目录名本身。
+const MAJOR_BY_DIR = {
+  人力资源: '人力资源管理',
+  工商管理: '工商管理',
+  财政税收: '财政税收',
+  经济基础: '经济基础'
+}
+
+/** 从文件路径推断所属专业大类，如 docs/工商管理/第1章-xxx.md → 工商管理 */
+function majorOf(file) {
+  const dir = file.split('/')[1] || ''
+  return MAJOR_BY_DIR[dir] || dir || '其他'
+}
+
 /* ------------------------------------------------------------------ */
 /* 工具函数                                                             */
 /* ------------------------------------------------------------------ */
@@ -225,6 +240,7 @@ function parseBlock(content, ctx) {
     id: meta.id || `auto-${ctx.fileSlug}-${ctx.index}`,
     type,
     category: ctx.category,
+    major: ctx.major,
     difficulty: Number(meta.difficulty) || 2,
     source: meta.source || '',
     question,
@@ -259,13 +275,14 @@ function main() {
 
     const docMeta = parseFrontmatter(text)
     const category = docMeta.title || path.basename(file, '.md')
+    const major = majorOf(file)
     const fileSlug = path.basename(file, '.md').replace(/[^\w\u4e00-\u9fa5]+/g, '-')
 
     const blocks = extractQuizBlocks(text)
     if (!blocks.length) continue
 
     blocks.forEach((block, index) => {
-      const ctx = { file, category, fileSlug, index: index + 1, line: block.startLine }
+      const ctx = { file, category, major, fileSlug, index: index + 1, line: block.startLine }
       let parsed
       try {
         parsed = parseBlock(block.content, ctx)
@@ -307,15 +324,23 @@ function main() {
   // ---- 统计输出 ----
   const byType = {}
   const byChapter = {}
+  const byMajor = {}
   for (const q of questions) {
     byType[q.type] = (byType[q.type] || 0) + 1
     const key = q.chapter ? `第${q.chapter}章` : '(未识别章节)'
     byChapter[key] = (byChapter[key] || 0) + 1
+    byMajor[q.major] = (byMajor[q.major] || 0) + 1
   }
 
   console.log(`扫描文件：${files.length} 个 markdown`)
   console.log(`共解析 ${questions.length} 题 → ${path.relative(ROOT, OUT_FILE)}`)
   console.log(`题型分布：${Object.entries(byType).map(([k, v]) => `${k}=${v}`).join('  ') || '(空)'}`)
+  console.log(
+    `大类分布：${Object.entries(byMajor)
+      .sort((a, b) => b[1] - a[1])
+      .map(([k, v]) => `${k}=${v}`)
+      .join('  ') || '(空)'}`
+  )
   console.log(
     `章节分布：${Object.entries(byChapter)
       .sort()

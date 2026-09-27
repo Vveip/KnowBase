@@ -2,19 +2,21 @@
 /**
  * 刷题组件
  * 数据来自 scripts/gen-quiz.mjs 生成的 ../quiz-data.json
- * 支持：章节 / 题型 / 难度筛选、选项乱序、三种题型判分、错题重出、错题本、localStorage 持久化
+ * 支持：专业大类（多选）/ 章节 / 题型 / 难度筛选、选项乱序、三种题型判分、错题重出、错题本、localStorage 持久化
  */
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import rawData from '../quiz-data.json'
 
 const QUESTIONS = Array.isArray(rawData) ? rawData : rawData.questions || []
 const LETTERS = 'ABCDEFGH'
 const STATS_KEY = 'kb-quiz-stats-v1'
 const WRONG_KEY = 'kb-quiz-wrong-v1'
+const FILTERS_KEY = 'kb-quiz-filters-v1'
 
 /* ---------------- 状态 ---------------- */
 
 const filters = reactive({
+  majors: [], // 已选专业大类（多选）；为空表示未选择，不出题
   category: 'all',
   type: 'all',
   difficulty: 'all',
@@ -42,17 +44,46 @@ const current = computed(() => queue.value[0] || null)
 
 /* ---------------- 筛选 ---------------- */
 
-const categories = computed(() => [...new Set(QUESTIONS.map((q) => q.category).filter(Boolean))])
+/** 专业大类列表（按题量降序），形如 [{ name: '人力资源管理', count: 750 }] */
+const majors = computed(() => {
+  const counts = new Map()
+  for (const q of QUESTIONS) {
+    if (!q.major) continue
+    counts.set(q.major, (counts.get(q.major) || 0) + 1)
+  }
+  return [...counts.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count)
+})
+
+const allMajorsSelected = computed(
+  () => majors.value.length > 0 && filters.majors.length === majors.value.length
+)
+
+/** 章节列表：随所选大类联动，只列出选中大类下的章节 */
+const chapters = computed(() => {
+  const selected = new Set(filters.majors)
+  return [
+    ...new Set(
+      QUESTIONS.filter((q) => q.category && selected.has(q.major)).map((q) => q.category)
+    )
+  ]
+})
+
 const types = computed(() => [...new Set(QUESTIONS.map((q) => q.type).filter(Boolean))])
 const difficulties = computed(() =>
   [...new Set(QUESTIONS.map((q) => q.difficulty))].sort((a, b) => a - b)
 )
 
-const wrongBook = computed(() => QUESTIONS.filter((q) => (wrongCounts[q.id] || 0) >= 2))
+const wrongBook = computed(() => {
+  const selected = new Set(filters.majors)
+  return QUESTIONS.filter((q) => (wrongCounts[q.id] || 0) >= 2 && selected.has(q.major))
+})
 
 const pool = computed(() => {
   if (filters.wrongOnly) return wrongBook.value
+  if (!filters.majors.length) return []
+  const selected = new Set(filters.majors)
   return QUESTIONS.filter((q) => {
+    if (!selected.has(q.major)) return false
     if (filters.category !== 'all' && q.category !== filters.category) return false
     if (filters.type !== 'all' && q.type !== filters.type) return false
     if (filters.difficulty !== 'all' && String(q.difficulty) !== String(filters.difficulty)) return false
@@ -123,6 +154,57 @@ function persist() {
   }
 }
 
+/** 恢复上次的筛选配置（大类组合 / 章节 / 题型 / 难度），大类无效或为空时回退为全选 */
+function loadFilters() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FILTERS_KEY) || '{}')
+    const validMajors = new Set(majors.value.map((m) => m.name))
+    const savedMajors = Array.isArray(saved.majors)
+      ? saved.majors.filter((m) => validMajors.has(m))
+      : []
+    filters.majors = savedMajors.length ? savedMajors : majors.value.map((m) => m.name)
+    if (saved.category && chapters.value.includes(saved.category)) filters.category = saved.category
+    if (saved.type && types.value.includes(saved.type)) filters.type = saved.type
+    if (
+      saved.difficulty &&
+      difficulties.value.map(String).includes(String(saved.difficulty))
+    ) {
+      filters.difficulty = String(saved.difficulty)
+    }
+  } catch (err) {
+    console.warn('[quiz] 读取筛选配置失败：', err)
+    filters.majors = majors.value.map((m) => m.name)
+  }
+}
+
+function persistFilters() {
+  try {
+    localStorage.setItem(
+      FILTERS_KEY,
+      JSON.stringify({
+        majors: filters.majors,
+        category: filters.category,
+        type: filters.type,
+        difficulty: filters.difficulty
+      })
+    )
+  } catch (err) {
+    console.warn('[quiz] 保存筛选配置失败：', err)
+  }
+}
+
+// 筛选条件变化即时持久化；大类变化时若已选章节不在新大类下，自动重置为「全部章节」
+watch(
+  filters,
+  () => {
+    persistFilters()
+    if (filters.category !== 'all' && !chapters.value.includes(filters.category)) {
+      filters.category = 'all'
+    }
+  },
+  { deep: true }
+)
+
 /* ---------------- 流程 ---------------- */
 
 function cloneQuestion(q) {
@@ -154,12 +236,18 @@ function enterQuestion() {
 
 const notice = ref('')
 
+function toggleAllMajors(event) {
+  filters.majors = event.target.checked ? majors.value.map((m) => m.name) : []
+}
+
 function start() {
   const source = pool.value
   if (!source.length) {
-    notice.value = filters.wrongOnly
-      ? '错题本还是空的，先去刷几道题吧。'
-      : '当前筛选条件下没有题目，换个条件试试。'
+    notice.value = !filters.majors.length
+      ? '请先勾选至少一个专业大类。'
+      : filters.wrongOnly
+        ? '错题本还是空的，先去刷几道题吧。'
+        : '当前筛选条件下没有题目，换个条件试试。'
     return
   }
   notice.value = ''
@@ -267,7 +355,10 @@ function answerText(q) {
 
 onMounted(() => {
   loadPersisted()
-  if (QUESTIONS.length) start()
+  if (QUESTIONS.length) {
+    loadFilters()
+    start()
+  }
 })
 </script>
 
@@ -275,12 +366,39 @@ onMounted(() => {
   <div class="quiz">
     <!-- 筛选区 -->
     <section class="quiz-panel">
+      <div class="quiz-filters quiz-filters-majors">
+        <span class="quiz-filters-label">专业大类</span>
+        <label
+          v-for="m in majors"
+          :key="m.name"
+          class="quiz-check"
+          :title="`${m.name}：${m.count} 题`"
+        >
+          <input
+            v-model="filters.majors"
+            :value="m.name"
+            type="checkbox"
+            :disabled="filters.wrongOnly"
+          />
+          {{ m.name }}（{{ m.count }} 题）
+        </label>
+        <label class="quiz-check">
+          <input
+            :checked="allMajorsSelected"
+            :indeterminate="filters.majors.length > 0 && !allMajorsSelected"
+            type="checkbox"
+            :disabled="filters.wrongOnly"
+            @change="toggleAllMajors"
+          />
+          全选
+        </label>
+      </div>
       <div class="quiz-filters">
         <label>
           章节
           <select v-model="filters.category" :disabled="filters.wrongOnly">
             <option value="all">全部章节</option>
-            <option v-for="c in categories" :key="c" :value="c">{{ c }}</option>
+            <option v-for="c in chapters" :key="c" :value="c">{{ c }}</option>
           </select>
         </label>
         <label>
@@ -446,7 +564,7 @@ onMounted(() => {
 
     <!-- 错题本 -->
     <section v-if="wrongBook.length" class="quiz-panel">
-      <h3 class="quiz-subtitle">错题本（错 ≥ 2 次）</h3>
+      <h3 class="quiz-subtitle">错题本（错 ≥ 2 次，仅统计当前所选大类）</h3>
       <ul class="quiz-wrong-list">
         <li v-for="q in wrongBook" :key="q.id">
           <span class="quiz-tag quiz-tag-wrong">错 {{ wrongCounts[q.id] }} 次</span>
@@ -480,6 +598,27 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 12px 16px;
   align-items: center;
+}
+
+.quiz-filters + .quiz-filters {
+  margin-top: 10px;
+}
+
+.quiz-filters-label {
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+}
+
+.quiz-filters-majors .quiz-check {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  padding: 3px 10px;
+  background: var(--vp-c-bg);
+  cursor: pointer;
+}
+
+.quiz-filters-majors .quiz-check:hover {
+  border-color: var(--vp-c-brand-1);
 }
 
 .quiz-filters label {
