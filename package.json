@@ -8,7 +8,8 @@
     "docs:dev": "node scripts/gen-quiz.mjs && vitepress dev",
     "docs:build": "node scripts/gen-quiz.mjs && vitepress build",
     "docs:preview": "vitepress preview",
-    "quiz": "node scripts/gen-quiz.mjs"
+    "quiz": "node scripts/gen-quiz.mjs",
+    "test": "node scripts/gen-quiz.mjs && node --test tests/*.test.mjs"
   },
   "devDependencies": {
     "vitepress": "^1.6.4"

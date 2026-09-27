@@ -2,13 +2,13 @@
 /**
  * 刷题组件
  * 数据来自 scripts/gen-quiz.mjs 生成的 ../quiz-data.json
- * 支持：专业大类（多选）/ 章节 / 题型 / 难度筛选、选项乱序、三种题型判分、错题重出、错题本、localStorage 持久化
+ * 支持：专业大类（多选）/ 章节 / 题型 / 难度筛选、题目乱序、三种题型判分、错题重出、错题本、localStorage 持久化
  */
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import rawData from '../quiz-data.json'
+import { choiceAnswerText, displayChoiceOptions } from './quiz-choice.mjs'
 
 const QUESTIONS = Array.isArray(rawData) ? rawData : rawData.questions || []
-const LETTERS = 'ABCDEFGH'
 const STATS_KEY = 'kb-quiz-stats-v1'
 const WRONG_KEY = 'kb-quiz-wrong-v1'
 const FILTERS_KEY = 'kb-quiz-filters-v1'
@@ -33,8 +33,9 @@ const queue = ref([]) // 待答题队列，queue[0] 为当前题
 const done = ref(0) // 本轮已完成题数
 const skipped = ref(0)
 const phase = ref('idle') // idle | answering | judged | finished
+const filtersExpanded = ref(false) // 手机端默认收起筛选，让当前题尽早出现在屏幕内
 
-const shuffledOptions = ref([])
+const displayedOptions = ref([])
 const selected = ref([]) // 已选中的原始选项 key
 const blankInputs = ref([])
 const qaRevealed = ref(false)
@@ -223,11 +224,7 @@ function enterQuestion() {
     return
   }
   if (q.type === 'choice') {
-    shuffledOptions.value = shuffle(q.options).map((o, i) => ({
-      label: LETTERS[i] || String(i + 1),
-      key: o.key,
-      text: o.text
-    }))
+    displayedOptions.value = displayChoiceOptions(q)
   } else if (q.type === 'blank') {
     blankInputs.value = new Array(Math.max(q.answer.length, 1)).fill('')
   }
@@ -345,10 +342,7 @@ function optionState(option) {
 
 function answerText(q) {
   if (!q) return ''
-  if (q.type === 'choice') {
-    const map = Object.fromEntries((q.options || []).map((o) => [o.key, o.text]))
-    return q.answer.map((k) => `${k}. ${map[k] || ''}`).join('\n')
-  }
+  if (q.type === 'choice') return choiceAnswerText(q)
   if (q.type === 'blank') return q.answer.join(' ｜ ')
   return q.answer || '（见解析）'
 }
@@ -366,62 +360,74 @@ onMounted(() => {
   <div class="quiz">
     <!-- 筛选区 -->
     <section class="quiz-panel">
-      <div class="quiz-filters quiz-filters-majors">
-        <span class="quiz-filters-label">专业大类</span>
-        <label
-          v-for="m in majors"
-          :key="m.name"
-          class="quiz-check"
-          :title="`${m.name}：${m.count} 题`"
-        >
-          <input
-            v-model="filters.majors"
-            :value="m.name"
-            type="checkbox"
-            :disabled="filters.wrongOnly"
-          />
-          {{ m.name }}（{{ m.count }} 题）
-        </label>
-        <label class="quiz-check">
-          <input
-            :checked="allMajorsSelected"
-            :indeterminate="filters.majors.length > 0 && !allMajorsSelected"
-            type="checkbox"
-            :disabled="filters.wrongOnly"
-            @change="toggleAllMajors"
-          />
-          全选
-        </label>
-      </div>
-      <div class="quiz-filters">
-        <label>
-          章节
-          <select v-model="filters.category" :disabled="filters.wrongOnly">
-            <option value="all">全部章节</option>
-            <option v-for="c in chapters" :key="c" :value="c">{{ c }}</option>
-          </select>
-        </label>
-        <label>
-          题型
-          <select v-model="filters.type" :disabled="filters.wrongOnly">
-            <option value="all">全部题型</option>
-            <option v-for="t in types" :key="t" :value="t">{{ typeLabel(t) }}</option>
-          </select>
-        </label>
-        <label>
-          难度
-          <select v-model="filters.difficulty" :disabled="filters.wrongOnly">
-            <option value="all">全部难度</option>
-            <option v-for="d in difficulties" :key="d" :value="String(d)">
-              {{ difficultyLabel(d) }}
-            </option>
-          </select>
-        </label>
-        <label class="quiz-check">
-          <input v-model="filters.wrongOnly" type="checkbox" />
-          只刷错题本（错 ≥ 2 次）
-        </label>
-        <button class="quiz-btn" @click="start">开始 / 重新开始</button>
+      <button
+        class="quiz-filter-toggle"
+        type="button"
+        :aria-expanded="filtersExpanded"
+        aria-controls="quiz-filter-controls"
+        @click="filtersExpanded = !filtersExpanded"
+      >
+        {{ filtersExpanded ? '收起筛选' : '筛选条件 / 重新开始' }}
+        <span aria-hidden="true">{{ filtersExpanded ? '⌃' : '⌄' }}</span>
+      </button>
+      <div id="quiz-filter-controls" class="quiz-filter-controls" :class="{ 'mobile-collapsed': !filtersExpanded }">
+        <div class="quiz-filters quiz-filters-majors">
+          <span class="quiz-filters-label">专业大类</span>
+          <label
+            v-for="m in majors"
+            :key="m.name"
+            class="quiz-check"
+            :title="`${m.name}：${m.count} 题`"
+          >
+            <input
+              v-model="filters.majors"
+              :value="m.name"
+              type="checkbox"
+              :disabled="filters.wrongOnly"
+            />
+            {{ m.name }}（{{ m.count }} 题）
+          </label>
+          <label class="quiz-check">
+            <input
+              :checked="allMajorsSelected"
+              :indeterminate="filters.majors.length > 0 && !allMajorsSelected"
+              type="checkbox"
+              :disabled="filters.wrongOnly"
+              @change="toggleAllMajors"
+            />
+            全选
+          </label>
+        </div>
+        <div class="quiz-filters">
+          <label>
+            章节
+            <select v-model="filters.category" :disabled="filters.wrongOnly">
+              <option value="all">全部章节</option>
+              <option v-for="c in chapters" :key="c" :value="c">{{ c }}</option>
+            </select>
+          </label>
+          <label>
+            题型
+            <select v-model="filters.type" :disabled="filters.wrongOnly">
+              <option value="all">全部题型</option>
+              <option v-for="t in types" :key="t" :value="t">{{ typeLabel(t) }}</option>
+            </select>
+          </label>
+          <label>
+            难度
+            <select v-model="filters.difficulty" :disabled="filters.wrongOnly">
+              <option value="all">全部难度</option>
+              <option v-for="d in difficulties" :key="d" :value="String(d)">
+                {{ difficultyLabel(d) }}
+              </option>
+            </select>
+          </label>
+          <label class="quiz-check">
+            <input v-model="filters.wrongOnly" type="checkbox" />
+            只刷错题本（错 ≥ 2 次）
+          </label>
+          <button class="quiz-btn" @click="start">开始 / 重新开始</button>
+        </div>
       </div>
       <p class="quiz-hint">
         当前筛选命中 <strong>{{ pool.length }}</strong> 题 ｜ 全站题库
@@ -470,7 +476,7 @@ onMounted(() => {
       <!-- 选择题 -->
       <div v-if="current.type === 'choice'" class="quiz-options">
         <button
-          v-for="opt in shuffledOptions"
+          v-for="opt in displayedOptions"
           :key="opt.key"
           class="quiz-option"
           :class="optionState(opt)"
@@ -584,6 +590,7 @@ onMounted(() => {
   flex-direction: column;
   gap: 16px;
   margin-top: 16px;
+  min-width: 0;
 }
 
 .quiz-panel {
@@ -591,6 +598,7 @@ onMounted(() => {
   border-radius: 10px;
   background: var(--vp-c-bg-soft);
   padding: 14px 16px;
+  min-width: 0;
 }
 
 .quiz-filters {
@@ -598,6 +606,10 @@ onMounted(() => {
   flex-wrap: wrap;
   gap: 12px 16px;
   align-items: center;
+}
+
+.quiz-filter-toggle {
+  display: none;
 }
 
 .quiz-filters + .quiz-filters {
@@ -753,6 +765,7 @@ onMounted(() => {
   line-height: 1.6;
   cursor: pointer;
   transition: border-color 0.2s, background 0.2s;
+  overflow-wrap: anywhere;
 }
 
 .quiz-option:not(:disabled):hover {
@@ -890,9 +903,91 @@ onMounted(() => {
 }
 
 @media (max-width: 640px) {
+  .quiz-panel {
+    padding: 12px;
+  }
+
+  .quiz-filter-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    min-height: 44px;
+    border-radius: 6px;
+    padding: 0 10px;
+    background: var(--vp-c-bg);
+    color: var(--vp-c-brand-1);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .quiz-filter-toggle:focus-visible {
+    outline: 2px solid var(--vp-c-brand-1);
+  }
+
+  .quiz-filter-controls:not(.mobile-collapsed) {
+    margin-top: 10px;
+  }
+
+  .quiz-filter-controls.mobile-collapsed {
+    display: none;
+  }
+
   .quiz-filters {
     flex-direction: column;
     align-items: stretch;
+    gap: 8px;
+  }
+
+  .quiz-filters > label:not(.quiz-check) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .quiz-filters-majors .quiz-check,
+  .quiz-filters > .quiz-check {
+    min-height: 44px;
+    padding: 8px 12px;
+  }
+
+  .quiz-check input[type='checkbox'] {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    accent-color: var(--vp-c-brand-1);
+  }
+
+  .quiz-filters select {
+    width: 100%;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .quiz-btn:not(.quiz-btn-sm) {
+    min-height: 44px;
+  }
+
+  .quiz-option {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .quiz-blanks input {
+    min-width: 0;
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .quiz-question,
+  .quiz-right-answer,
+  .quiz-explanation {
+    overflow-wrap: anywhere;
+  }
+
+  .quiz-wrong-list li {
+    flex-wrap: wrap;
   }
 }
 </style>
